@@ -38,5 +38,8 @@ def ingest_json_data(project):
     print('Received JSON data for \'{0}\': {1}'.format(cleaned_project, data_dict))
     return 'JSON data accepted for {0}\n'.format(cleaned_project)
 
+@get('/json-collector/health-check')
+def return_health_check():
+	return 'Everything is ay oh kay\n'
 
 run(host='0.0.0.0', port=8000, debug=True)

@@ -14,8 +14,10 @@ LABEL maintainer="Michael Kamprath <https://github.com/michaelkamprath>"
 #
 
 EXPOSE 8000
+RUN apk --no-cache add curl
 RUN pip install bottle
 RUN mkdir -p /run/collector
 COPY json-collector-service.py /json-collector-service.py
 
+HEALTHCHECK CMD curl --fail http://localhost:8000/json-collector/health-check || exit 1
 CMD ["python", "/json-collector-service.py"]
