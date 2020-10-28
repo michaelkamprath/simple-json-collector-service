@@ -82,7 +82,8 @@ if __name__ == "__main__":
         ('0.0.0.0', 8000),
         app,
         server_name='simple-json-collector',
-        numthreads=8
+        numthreads=8,
+        timeout=90,
     )
 
     try:
