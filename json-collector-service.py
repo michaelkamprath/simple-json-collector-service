@@ -2,10 +2,9 @@ import json
 import time
 from bottle import Bottle, route, get, post, run, request, static_file, response
 
-try:
-    from cheroot.wsgi import Server as WSGIServer
-except ImportError:
-    from cherrypy.wsgiserver import CherryPyWSGIServer as WSGIServer
+import tornado.wsgi
+import tornado.httpserver
+import tornado.ioloop
 
 DATA_FILE_DIR = '/run/collector'
 DATE_FILE_EXTENSION = 'jsonl'
@@ -26,13 +25,12 @@ def logRequestEvent(time_str, json_data):
             response.status,
             '-' if json_data is None else json_data
         ))
-        
+
 @app.get('/json-collector/<project>')
 def return_json_data(project):
     cleaned_project = clean_project_name(project)
     logRequestEvent(time.strftime(LOG_TIME_FORMAT), None)
     return static_file('{0}.{1}'.format(cleaned_project, DATE_FILE_EXTENSION), root=DATA_FILE_DIR)
-        
 
 @app.post('/json-collector/<project>')
 def ingest_json_data(project):
@@ -59,11 +57,11 @@ def ingest_json_data(project):
     }
     for k in request.headers.keys():
         data_dict['request_headers'][k] = request.get_header(k, '')
-    
+
     filename = '{0}/{1}.{2}'.format(DATA_FILE_DIR, cleaned_project, DATE_FILE_EXTENSION)
     with open(filename, 'a') as f:
         f.write(json.dumps(data_dict)+'\n')
-        
+
     logRequestEvent(event_time_str, json_data)
     return 'JSON data accepted for {0}'.format(project)
 
@@ -78,17 +76,9 @@ def error404(error):
     return 'Unknown URL'
 
 if __name__ == "__main__":
-    server = WSGIServer(
-        ('0.0.0.0', 8000),
-        app,
-        server_name='simple-json-collector',
-        numthreads=8,
-        timeout=90,
-    )
+    container = tornado.wsgi.WSGIContainer(app)
+    server = tornado.httpserver.HTTPServer(container)
+    server.listen(port=8000)
+    tornado.ioloop.IOLoop.instance().start()
+    print('Started Simple JSON Collector Service listening on port 8000')
 
-    try:
-        print("Simple JSON Collector Service starting:\thttp://0.0.0.0:8000/")
-        server.start()
-    except KeyboardInterrupt:
-        print("Halting Simple JSON Collector Service")
-        server.stop()

@@ -15,7 +15,7 @@ LABEL maintainer="Michael Kamprath <https://github.com/michaelkamprath>"
 
 EXPOSE 8000
 RUN apk --no-cache add curl
-RUN pip install bottle cherrypy
+RUN pip install bottle tornado
 RUN mkdir -p /run/collector
 COPY json-collector-service.py /json-collector-service.py
 
