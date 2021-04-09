@@ -29,3 +29,4 @@ The data is saved in the JSON Lines format (one JSON payload per line) with the 
 
 # Issues and TODOs
 * Currently this service has no security.
+* Add log rotation so individual log files do not grow "too large".
