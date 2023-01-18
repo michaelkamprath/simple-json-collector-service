@@ -13,12 +13,12 @@ LOG_TIME_FORMAT = '%Y-%m-%d %H:%M:%S'
 app = Bottle()
 
 def clean_project_name(project):
-    # since project is used a a file name, remove any symbols 
+    # since project is used a a file name, remove any symbols
     return "".join(filter(str.isalnum, project))
 
 def logRequestEvent(time_str, json_data):
     print('{0} [{1}] {2} {3} {4} {5}'.format(
-            request.environ.get('HTTP_X_FORWARDED_FOR') or request.environ.get('REMOTE_ADDR'),
+            request.remote_addr,
             time_str,
             request.method,
             request.url,
@@ -50,8 +50,8 @@ def ingest_json_data(project):
         json_data = ''
     data_dict = {
         'timestamp': event_time,
-        'client_ip': request.environ.get('HTTP_X_FORWARDED_FOR') or request.environ.get('REMOTE_ADDR'),
-        'request_headers':{}, 
+        'client_ip': request.remote_addr,
+        'request_headers':{},
         'request_url': request.url,
         'posted_data': json_data
     }
