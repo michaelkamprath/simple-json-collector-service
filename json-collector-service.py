@@ -1,5 +1,6 @@
 import json
 import time
+import asyncio
 from bottle import Bottle, route, get, post, run, request, static_file, response
 
 import tornado.wsgi
@@ -75,10 +76,14 @@ def error404(error):
     logRequestEvent(time.strftime(LOG_TIME_FORMAT), None)
     return 'Unknown URL'
 
-if __name__ == "__main__":
+
+async def main():
+    event = asyncio.Event()
     container = tornado.wsgi.WSGIContainer(app)
     server = tornado.httpserver.HTTPServer(container)
     server.listen(port=8000)
-    tornado.ioloop.IOLoop.instance().start()
     print('Started Simple JSON Collector Service listening on port 8000')
+    await event.wait()
 
+if __name__ == "__main__":
+    asyncio.run(main())
