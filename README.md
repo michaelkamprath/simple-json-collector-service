@@ -17,6 +17,8 @@ docker run -d  \
 ```
 Where `DATA_FILE_DIR` is the directory in which to save data and `SERVICE_PORT` is the port the web service should listen on.
 
+The environment variable `MAX_JSONL_FILE_SIZE` (integer value in bytes) can be used to set the max data file size used when determining when to rotate the data file. It defaults to 50 MB. 
+
 ## TTN Integration
 Set up in TTN by adding a [HTTP Integration](https://www.thethingsnetwork.org/docs/applications/http/) to your application. The URL should be:
 ```
@@ -29,4 +31,3 @@ The data is saved in the JSON Lines format (one JSON payload per line) with the 
 
 # Issues and TODOs
 * Currently this service has no security.
-* Add log rotation so individual log files do not grow "too large".

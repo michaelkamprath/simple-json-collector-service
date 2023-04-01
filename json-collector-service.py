@@ -1,4 +1,7 @@
 import json
+import os
+import shutil
+from logging.handlers import RotatingFileHandler
 import time
 import asyncio
 from bottle import Bottle, route, get, post, run, request, static_file, response
@@ -59,9 +62,14 @@ def ingest_json_data(project):
     for k in request.headers.keys():
         data_dict['request_headers'][k] = request.get_header(k, '')
 
+    max_size_env = os.environ.get('MAX_JSONL_FILE_SIZE')
+    max_size = int(max_size_env) if max_size_env else 52428800  # Set a default value if the environment variable is not set
+
     filename = '{0}/{1}.{2}'.format(DATA_FILE_DIR, cleaned_project, DATE_FILE_EXTENSION)
+    rotate_file_if_needed(filename, max_size=max_size)
+
     with open(filename, 'a') as f:
-        f.write(json.dumps(data_dict)+'\n')
+        f.write(json.dumps(data_dict) + '\n')
 
     logRequestEvent(event_time_str, json_data)
     return 'JSON data accepted for {0}'.format(project)
@@ -76,6 +84,14 @@ def error404(error):
     logRequestEvent(time.strftime(LOG_TIME_FORMAT), None)
     return 'Unknown URL'
 
+def rotate_file_if_needed(filename, max_size):
+    if os.path.exists(filename) and os.path.getsize(filename) >= max_size:
+        backup_number = 1
+        file_base, ext = os.path.splitext(filename)
+        while os.path.exists(f"{file_base}.{backup_number}{ext}"):
+            backup_number += 1
+
+        shutil.move(filename, f"{file_base}.{backup_number}{ext}")
 
 async def main():
     event = asyncio.Event()
