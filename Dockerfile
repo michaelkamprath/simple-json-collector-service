@@ -1,4 +1,4 @@
-FROM python:3-alpine
+FROM python:3.13-alpine
 LABEL org.label-schema.schema-version="1.0"
 LABEL org.label-schema.name="Simple JSON Data Collector Service"
 LABEL org.label-schema.description="A simple web service for gathering JSON-formatted data. Allows data to be grouped into projects."
@@ -15,7 +15,8 @@ LABEL maintainer="Michael Kamprath <https://github.com/michaelkamprath>"
 
 EXPOSE 8000
 RUN apk --no-cache add curl
-RUN pip install bottle tornado
+COPY requires.txt /requires.txt
+RUN pip install --no-cache-dir -r /requires.txt
 RUN mkdir -p /run/collector
 COPY json-collector-service.py /json-collector-service.py
 
