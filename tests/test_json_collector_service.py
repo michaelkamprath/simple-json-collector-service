@@ -29,9 +29,15 @@ class JsonCollectorServiceTests(unittest.TestCase):
         self.original_max_size = os.environ.get("MAX_JSONL_FILE_SIZE")
         self.addCleanup(self._restore_max_size)
 
+        self.original_tokens_file_env = os.environ.get("AUTHORIZED_TOKENS_FILE")
+        self.original_token_header_env = os.environ.get("JSON_COLLECTOR_TOKEN_HEADER")
+        self.addCleanup(self._restore_token_env)
+
         self.original_testing_flag = json_collector_service.app.testing
         json_collector_service.app.testing = True
         self.addCleanup(self._restore_testing_flag)
+
+        json_collector_service.token_authenticator = json_collector_service.configure_token_authentication()
 
     def _restore_data_dir(self) -> None:
         json_collector_service.DATA_FILE_DIR = self.original_data_dir
@@ -41,6 +47,19 @@ class JsonCollectorServiceTests(unittest.TestCase):
             os.environ.pop("MAX_JSONL_FILE_SIZE", None)
         else:
             os.environ["MAX_JSONL_FILE_SIZE"] = self.original_max_size
+
+    def _restore_token_env(self) -> None:
+        if self.original_tokens_file_env is None:
+            os.environ.pop("AUTHORIZED_TOKENS_FILE", None)
+        else:
+            os.environ["AUTHORIZED_TOKENS_FILE"] = self.original_tokens_file_env
+
+        if self.original_token_header_env is None:
+            os.environ.pop("JSON_COLLECTOR_TOKEN_HEADER", None)
+        else:
+            os.environ["JSON_COLLECTOR_TOKEN_HEADER"] = self.original_token_header_env
+
+        json_collector_service.token_authenticator = json_collector_service.configure_token_authentication()
 
     def _restore_testing_flag(self) -> None:
         json_collector_service.app.testing = self.original_testing_flag
@@ -157,6 +176,144 @@ class JsonCollectorServiceTests(unittest.TestCase):
         self.assertEqual(len(new_lines), 1)
         self.assertEqual(json.loads(rotated_lines[0])["posted_data"], {"a": 1})
         self.assertEqual(json.loads(new_lines[0])["posted_data"], {"a": 2})
+
+    def test_authorized_token_allows_post_and_redacts_header(self) -> None:
+        tokens_file = Path(self.data_dir_ctx.name) / "tokens.json"
+        tokens_file.write_text(json.dumps({"alice": "token-123"}), encoding="utf-8")
+
+        os.environ["AUTHORIZED_TOKENS_FILE"] = str(tokens_file)
+        os.environ["JSON_COLLECTOR_TOKEN_HEADER"] = "X-Custom-Token"
+        json_collector_service.token_authenticator = json_collector_service.configure_token_authentication()
+
+        payload = {"temperature": 18}
+        status, _, body = self.invoke_app(
+            "POST",
+            "/json-collector/secure-feed",
+            body=json.dumps(payload),
+            headers={
+                "Content-Type": "application/json",
+                "X-Custom-Token": "token-123",
+            },
+        )
+
+        self.assertTrue(status.startswith("200"))
+        self.assertIn("JSON data accepted for secure-feed", body.decode("utf-8"))
+
+        dataset_path = Path(self.data_dir_ctx.name) / "securefeed.jsonl"
+        stored_lines = dataset_path.read_text(encoding="utf-8").strip().splitlines()
+        self.assertEqual(len(stored_lines), 1)
+        record = json.loads(stored_lines[0])
+        self.assertEqual(record["posted_data"], payload)
+        self.assertEqual(record.get("authenticated_user"), "alice")
+        self.assertEqual(record["request_headers"].get("X-Custom-Token"), "[REDACTED]")
+
+    def test_missing_token_header_returns_error_with_header_name(self) -> None:
+        tokens_file = Path(self.data_dir_ctx.name) / "tokens.json"
+        tokens_file.write_text(json.dumps({"alice": "token-123"}), encoding="utf-8")
+
+        os.environ["AUTHORIZED_TOKENS_FILE"] = str(tokens_file)
+        os.environ["JSON_COLLECTOR_TOKEN_HEADER"] = "X-JSON-Collector-Token"
+        json_collector_service.token_authenticator = json_collector_service.configure_token_authentication()
+
+        status, _, body = self.invoke_app(
+            "POST",
+            "/json-collector/secure-feed",
+            body=json.dumps({"temperature": 21}),
+            headers={"Content-Type": "application/json"},
+        )
+
+        self.assertTrue(status.startswith("401"))
+        self.assertIn("Missing required token header 'X-JSON-Collector-Token'", body.decode("utf-8"))
+
+    def test_invalid_token_is_rejected(self) -> None:
+        tokens_file = Path(self.data_dir_ctx.name) / "tokens.json"
+        tokens_file.write_text(json.dumps({"alice": "token-123"}), encoding="utf-8")
+
+        os.environ["AUTHORIZED_TOKENS_FILE"] = str(tokens_file)
+        json_collector_service.token_authenticator = json_collector_service.configure_token_authentication()
+
+        status, _, body = self.invoke_app(
+            "POST",
+            "/json-collector/secure-feed",
+            body=json.dumps({"temperature": 21}),
+            headers={
+                "Content-Type": "application/json",
+                "X-JSON-Collector-Token": "wrong-token",
+            },
+        )
+
+        self.assertTrue(status.startswith("403"))
+        self.assertIn("Provided token is not recognized", body.decode("utf-8"))
+
+    def test_authorized_tokens_file_is_not_served_via_get(self) -> None:
+        tokens_file = Path(self.data_dir_ctx.name) / "authorized_tokens.json"
+        tokens_file.write_text(json.dumps({"alice": "token-123"}), encoding="utf-8")
+
+        os.environ["AUTHORIZED_TOKENS_FILE"] = str(tokens_file)
+        json_collector_service.token_authenticator = json_collector_service.configure_token_authentication()
+
+        status, _, _ = self.invoke_app(
+            "GET",
+            "/json-collector/authorized_tokens",
+            headers={"X-JSON-Collector-Token": "token-123"},
+        )
+
+        self.assertTrue(status.startswith("404"))
+
+    def test_get_requires_token_when_auth_enabled(self) -> None:
+        dataset_path = Path(self.data_dir_ctx.name) / "securedataset.jsonl"
+        dataset_path.write_text("{\"sample\": 1}\n", encoding="utf-8")
+
+        tokens_file = Path(self.data_dir_ctx.name) / "tokens.json"
+        tokens_file.write_text(json.dumps({"alice": "token-123"}), encoding="utf-8")
+
+        os.environ["AUTHORIZED_TOKENS_FILE"] = str(tokens_file)
+        json_collector_service.token_authenticator = json_collector_service.configure_token_authentication()
+
+        status, _, _ = self.invoke_app(
+            "GET",
+            "/json-collector/secure-dataset",
+        )
+        self.assertTrue(status.startswith("401"))
+
+        status, _, _ = self.invoke_app(
+            "GET",
+            "/json-collector/secure-dataset",
+            headers={"X-JSON-Collector-Token": "wrong-token"},
+        )
+        self.assertTrue(status.startswith("403"))
+
+        status, _, body = self.invoke_app(
+            "GET",
+            "/json-collector/secure-dataset",
+            headers={"X-JSON-Collector-Token": "token-123"},
+        )
+        self.assertTrue(status.startswith("200"))
+        self.assertEqual(body.decode("utf-8"), "{\"sample\": 1}\n")
+
+    def test_token_header_is_redacted_when_auth_disabled(self) -> None:
+        os.environ.pop("AUTHORIZED_TOKENS_FILE", None)
+        json_collector_service.token_authenticator = json_collector_service.configure_token_authentication()
+
+        payload = {"temperature": 19}
+        status, _, body = self.invoke_app(
+            "POST",
+            "/json-collector/no-auth-feed",
+            body=json.dumps(payload),
+            headers={
+                "Content-Type": "application/json",
+                "X-JSON-Collector-Token": "should-not-leak",
+            },
+        )
+
+        self.assertTrue(status.startswith("200"))
+        self.assertIn("JSON data accepted for no-auth-feed", body.decode("utf-8"))
+
+        dataset_path = Path(self.data_dir_ctx.name) / "noauthfeed.jsonl"
+        record = json.loads(dataset_path.read_text(encoding="utf-8").strip())
+        headers_lower = {k.lower(): v for k, v in record["request_headers"].items()}
+        self.assertEqual(headers_lower.get("x-json-collector-token"), "[REDACTED]")
+        self.assertNotIn("authenticated_user", record)
 
 
 if __name__ == "__main__":
