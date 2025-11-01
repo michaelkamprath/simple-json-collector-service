@@ -1,4 +1,3 @@
-import asyncio
 import json
 import os
 import shutil
@@ -7,6 +6,7 @@ from typing import Dict, Optional
 
 import tornado.httpserver
 import tornado.wsgi
+import tornado.ioloop
 from flask import Flask, abort, request, send_from_directory
 from werkzeug.exceptions import BadRequest, NotFound
 
@@ -297,14 +297,13 @@ def rotate_file_if_needed(filename: str, max_size: int):
         shutil.move(filename, f"{file_base}.{backup_number}{ext}")
 
 
-async def main():
-    event = asyncio.Event()
+def main():
     container = tornado.wsgi.WSGIContainer(app)
     server = tornado.httpserver.HTTPServer(container)
     server.listen(port=8000)
     print("Started Simple JSON Collector Service listening on port 8000")
-    await event.wait()
+    tornado.ioloop.IOLoop.current().start()
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
