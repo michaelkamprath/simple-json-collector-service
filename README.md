@@ -38,6 +38,8 @@ When token authentication is enabled, the service rejects missing headers with a
 
 > Dataset downloads require the same header when authentication is enabled; the `/json-collector/health-check` endpoint remains publicly accessible for monitoring.
 
+The health check returns `500` with diagnostic text when the collector cannot access its data directory, making it easier to spot setup mistakes during deployment.
+
 ## TTN Integration
 Set up in TTN by adding a [HTTP Integration](https://www.thethingsnetwork.org/docs/applications/http/) to your application. The URL should be:
 ```
