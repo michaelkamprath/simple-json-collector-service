@@ -19,6 +19,7 @@ COPY requires.txt /requires.txt
 RUN pip install --no-cache-dir -r /requires.txt
 RUN mkdir -p /run/collector
 COPY json-collector-service.py /json-collector-service.py
+COPY token_auth.py /token_auth.py
 
 HEALTHCHECK CMD curl --fail http://localhost:8000/json-collector/health-check || exit 1
 CMD ["python", "/json-collector-service.py"]
