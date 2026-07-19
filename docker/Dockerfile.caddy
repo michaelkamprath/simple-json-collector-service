@@ -1,0 +1,13 @@
+ARG CADDY_VERSION=2
+
+FROM caddy:${CADDY_VERSION}-builder AS builder
+ARG CADDY_DNS_MODULE=github.com/caddy-dns/cloudflare
+RUN xcaddy build --with "${CADDY_DNS_MODULE}"
+
+FROM caddy:${CADDY_VERSION}-alpine
+COPY --from=builder /usr/bin/caddy /usr/bin/caddy
+COPY Caddyfile /etc/caddy/Caddyfile
+RUN addgroup -S -g 10001 proxy \
+    && adduser -S -D -H -u 10001 -G proxy proxy \
+    && chown -R proxy:proxy /data /config /etc/caddy
+USER proxy

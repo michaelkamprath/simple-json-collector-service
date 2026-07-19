@@ -1,11 +1,37 @@
 import json
 import os
 from pathlib import Path
+from unittest.mock import patch
 
 from tests.app_test_base import JsonCollectorAppTestCase
 
 
 class JsonCollectorServiceTests(JsonCollectorAppTestCase):
+    def test_main_uses_configured_port_or_default(self) -> None:
+        cases = ((None, 8000), ("", 8000), ("9123", 9123))
+
+        for configured_port, expected_port in cases:
+            with self.subTest(configured_port=configured_port):
+                with patch.dict(os.environ, {}, clear=False):
+                    if configured_port is None:
+                        os.environ.pop("JSON_COLLECTOR_PORT", None)
+                    else:
+                        os.environ["JSON_COLLECTOR_PORT"] = configured_port
+
+                    with patch.object(
+                        self.json_collector_service.tornado.httpserver,
+                        "HTTPServer",
+                    ) as server_class, patch.object(
+                        self.json_collector_service.tornado.ioloop.IOLoop,
+                        "current",
+                    ) as current_loop:
+                        self.json_collector_service.main()
+
+                    server_class.return_value.listen.assert_called_once_with(
+                        port=expected_port
+                    )
+                    current_loop.return_value.start.assert_called_once_with()
+
     def test_health_check_endpoint_returns_success_message(self) -> None:
         status, _, body = self.invoke_app("GET", "/json-collector/health-check")
         self.assertTrue(status.startswith("200"))

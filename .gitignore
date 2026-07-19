@@ -11,3 +11,12 @@ __pycache__
 
 .pytest_cache
 
+# Local Docker deployment state and secrets
+docker/.env
+docker/authorized_tokens.json
+docker/data/
+docker/caddy-data/
+docker/caddy-config/
+
+# Local maintainer notes
+docs/maintainer-github-container-registry.md

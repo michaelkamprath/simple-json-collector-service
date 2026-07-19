@@ -1,0 +1,57 @@
+# Generic TrueNAS SCALE example. Replace every YOUR_* value before installation.
+services:
+  collector:
+    image: ghcr.io/michaelkamprath/simple-json-collector-service:latest
+    user: "10001:10001"
+    environment:
+      JSON_COLLECTOR_PORT: "8000"
+      AUTHORIZED_TOKENS_FILE: /run/secrets/authorized_tokens.json
+      JSON_COLLECTOR_TOKEN_HEADER: X-JSON-Collector-Token
+      MAX_JSONL_FILE_SIZE: "52428800"
+    volumes:
+      - /mnt/YOUR_POOL/apps/json-collector/data:/run/collector
+      - /mnt/YOUR_POOL/apps/json-collector/secrets/authorized_tokens.json:/run/secrets/authorized_tokens.json:ro
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/json-collector/health-check')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  proxy:
+    image: ghcr.io/YOUR_GITHUB_USER/simple-json-collector-caddy-YOUR_PROVIDER:latest
+    env_file:
+      - /mnt/YOUR_POOL/apps/json-collector/secrets/caddy.env
+    environment:
+      DOMAIN: collector.example.com
+      DNS_PROVIDER: YOUR_PROVIDER
+      JSON_COLLECTOR_PORT: "8000"
+      TLS_PORT: "8443"
+    ports:
+      - "8443:8443"
+    volumes:
+      - /mnt/YOUR_POOL/apps/json-collector/caddy/data:/data
+      - /mnt/YOUR_POOL/apps/json-collector/caddy/config:/config
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    depends_on:
+      collector:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-check-certificate -q -O /dev/null https://127.0.0.1:8443/json-collector/health-check"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

@@ -19,6 +19,7 @@ TOKEN_FILE_ENV_VAR = "AUTHORIZED_TOKENS_FILE"
 TOKEN_HEADER_ENV_VAR = "JSON_COLLECTOR_TOKEN_HEADER"
 DEFAULT_TOKEN_HEADER = "X-JSON-Collector-Token"
 DEFAULT_TOKEN_FILE_PATH = f"{DATA_FILE_DIR}/authorized_tokens.json"
+PORT_ENV_VAR = "JSON_COLLECTOR_PORT"
 
 app = Flask(__name__)
 
@@ -206,10 +207,11 @@ def rotate_file_if_needed(filename: str, max_size: int):
 
 
 def main():
+    port = int(os.environ.get(PORT_ENV_VAR) or 8000)
     container = tornado.wsgi.WSGIContainer(app)
     server = tornado.httpserver.HTTPServer(container)
-    server.listen(port=8000)
-    print("Started Simple JSON Collector Service listening on port 8000")
+    server.listen(port=port)
+    print(f"Started Simple JSON Collector Service listening on port {port}")
     tornado.ioloop.IOLoop.current().start()
 
 

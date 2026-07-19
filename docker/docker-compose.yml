@@ -1,0 +1,67 @@
+services:
+  collector:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    environment:
+      JSON_COLLECTOR_PORT: ${JSON_COLLECTOR_PORT:-8000}
+      MAX_JSONL_FILE_SIZE: ${MAX_JSONL_FILE_SIZE:-52428800}
+      AUTHORIZED_TOKENS_FILE: /run/secrets/authorized_tokens.json
+      JSON_COLLECTOR_TOKEN_HEADER: ${JSON_COLLECTOR_TOKEN_HEADER:-X-JSON-Collector-Token}
+    volumes:
+      - collector_data:/run/collector
+      - ./authorized_tokens.json:/run/secrets/authorized_tokens.json:ro
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:' + os.environ['JSON_COLLECTOR_PORT'] + '/json-collector/health-check')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  proxy:
+    build:
+      context: .
+      dockerfile: Dockerfile.caddy
+      args:
+        CADDY_DNS_MODULE: ${CADDY_DNS_MODULE:-github.com/caddy-dns/cloudflare}
+    environment:
+      DOMAIN: ${DOMAIN:-collector.example.com}
+      ACME_EMAIL: ${ACME_EMAIL:-admin@example.com}
+      DNS_PROVIDER: ${DNS_PROVIDER:-cloudflare}
+      DNS_API_TOKEN: ${DNS_API_TOKEN}
+      JSON_COLLECTOR_PORT: ${JSON_COLLECTOR_PORT:-8000}
+      TLS_PORT: ${TLS_PORT:-8443}
+    ports:
+      - "${TLS_PORT:-8443}:${TLS_PORT:-8443}"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    depends_on:
+      collector:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-check-certificate -q -O /dev/null https://127.0.0.1:$${TLS_PORT}/json-collector/health-check"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  # Replace these with bind mounts if host-visible storage is preferred.
+  collector_data:
+  caddy_data:
+  caddy_config:

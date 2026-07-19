@@ -13,6 +13,7 @@ if [ "$2" != "" ]; then
 fi
 
 max_jsonl_file_bytes="${MAX_JSONL_FILE_SIZE:-"52428800"}"
+json_collector_port="${JSON_COLLECTOR_PORT:-"8000"}"
 
 echo "Saving JSON data files to: ${DATA_FILE_DIR}"
 
@@ -22,8 +23,9 @@ set -- docker run -d -it
 set -- "$@" --name json-collector-service
 set -- "$@" --restart unless-stopped
 set -- "$@" --mount "type=bind,src=${DATA_FILE_DIR},dst=/run/collector"
-set -- "$@" -p 8000:8000
+set -- "$@" -p "${json_collector_port}:${json_collector_port}"
 set -- "$@" --env "MAX_JSONL_FILE_SIZE=${max_jsonl_file_bytes}"
+set -- "$@" --env "JSON_COLLECTOR_PORT=${json_collector_port}"
 
 if [ "${TOKENS_FILE_PATH}" != "" ]; then
     echo "Binding authorized tokens file from: ${TOKENS_FILE_PATH}"
