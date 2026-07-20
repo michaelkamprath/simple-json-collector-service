@@ -1,6 +1,16 @@
 # Simple JSON Collector Service
 This is a dead simple web service to be used with a IOT or similar such devices that send telemetry data formatted as JSON, but can be used with anything that POSTs JSON payloads. This service was original designed to work with [The Things Network (TTN)](https://www.thethingsnetwork.org) to recieve telemetry from TTN applications via a [HTTP integration](https://www.thethingsnetwork.org/docs/applications/http/). This service has been packaged as a Docker container, making it easy to build and deploy anywhere.
 
+## Published Container Image
+
+Pushes to `main` publish the collector to GitHub Container Registry:
+
+```sh
+docker pull ghcr.io/michaelkamprath/simple-json-collector-service:latest
+```
+
+See [`docs/github-container-registry.md`](docs/github-container-registry.md) for image tags and pull instructions.
+
 ## Launching Web Service
 To launch the webservice, use the included shell script:
 ```
@@ -9,15 +19,21 @@ To launch the webservice, use the included shell script:
 Replacing `/path/to/data/directory` with the path to the directory where you want data to be stored. If no data directory is provided, the launch script will use the current `PWD`. Provide the optional second argument to bind an authorized tokens file into the container and enable token authentication. This script will build the Docker image and then launch the container. Note that port 8000 will be used by this service, and that the container is launched in detached, interactive mode.
 
 Alternatively, you can manually build the Docker file, then launch the container with something like:
-```
-docker run -d  \
-     --mount type=bind,src=$DATA_FILE_DIR,dst=/run/collector \
-    -p $SERVICE_PORT:8000 \
+```sh
+docker build -t json-collector-service:latest .
+JSON_COLLECTOR_PORT="${JSON_COLLECTOR_PORT:-8000}"
+docker run -d \
+    --user "$(id -u):$(id -g)" \
+    --mount "type=bind,src=${DATA_FILE_DIR},dst=/run/collector" \
+    --env "JSON_COLLECTOR_PORT=${JSON_COLLECTOR_PORT}" \
+    --publish "${JSON_COLLECTOR_PORT}:${JSON_COLLECTOR_PORT}" \
     json-collector-service:latest
 ```
-Where `DATA_FILE_DIR` is the directory in which to save data and `SERVICE_PORT` is the port the web service should listen on.
+`DATA_FILE_DIR` must be an absolute writable host directory. Running with the invoking host UID/GID preserves write access to normal bind-mounted directories while keeping the service non-root. `JSON_COLLECTOR_PORT` selects the service's container port and publishes that same port on the host; it defaults to `8000` when unset or empty. Dockerfile `EXPOSE` metadata does not publish a runtime-selected port, so direct `docker run` commands must include `--publish`.
 
-The environment variable `MAX_JSONL_FILE_SIZE` (integer value in bytes) can be used to set the max data file size used when determining when to rotate the data file. It defaults to 50 MB. 
+The environment variable `MAX_JSONL_FILE_SIZE` (integer value in bytes) can be used to set the max data file size used when determining when to rotate the data file. It defaults to 50 MB. The launch script also publishes the configured `JSON_COLLECTOR_PORT` on both the host and container.
+
+For a Docker Compose HTTPS deployment with DNS-01 certificate issuance, see [`docker/README.md`](docker/README.md).
 
 ## Securing Ingestion
 By default the collector accepts POST requests from any client. Provide a bearer-token manifest to restrict ingestion to trusted devices.

@@ -10,16 +10,17 @@ LABEL maintainer="Michael Kamprath <https://github.com/michaelkamprath>"
 #   To run this docker, the following bind is expected
 #       dst=/run/collector - This directory will contain the JSON data files
 #
-#   This docker is listening on port 8000. Be sure to map that port.
+#   This docker listens on JSON_COLLECTOR_PORT (8000 by default).
 #
 
-EXPOSE 8000
-RUN apk --no-cache add curl
 COPY requires.txt /requires.txt
 RUN pip install --no-cache-dir -r /requires.txt
-RUN mkdir -p /run/collector
+RUN addgroup -S -g 10001 collector && adduser -S -D -H -u 10001 -G collector collector \
+    && mkdir -p /run/collector \
+    && chown collector:collector /run/collector
 COPY json-collector-service.py /json-collector-service.py
 COPY token_auth.py /token_auth.py
 
-HEALTHCHECK CMD curl --fail http://localhost:8000/json-collector/health-check || exit 1
+USER collector
+HEALTHCHECK CMD python -c "import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:' + (os.environ.get('JSON_COLLECTOR_PORT') or '8000') + '/json-collector/health-check', timeout=3)"
 CMD ["python", "/json-collector-service.py"]

@@ -1,0 +1,10 @@
+{
+	email {$ACME_EMAIL}
+}
+
+https://{$DOMAIN}:{$TLS_PORT} {
+	tls {
+		dns {$DNS_PROVIDER} {$DNS_API_TOKEN}
+	}
+	reverse_proxy collector:{$JSON_COLLECTOR_PORT}
+}

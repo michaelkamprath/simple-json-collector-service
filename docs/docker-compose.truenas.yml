@@ -1,0 +1,62 @@
+# Generic TrueNAS SCALE example. Replace every YOUR_* value before installation.
+services:
+  collector:
+    image: ghcr.io/michaelkamprath/simple-json-collector-service:latest
+    user: "10001:10001"
+    environment:
+      JSON_COLLECTOR_PORT: "8000"
+      AUTHORIZED_TOKENS_FILE: /run/secrets/authorized_tokens.json
+      JSON_COLLECTOR_TOKEN_HEADER: X-JSON-Collector-Token
+      MAX_JSONL_FILE_SIZE: "52428800"
+    volumes:
+      - /mnt/YOUR_POOL/apps/json-collector/data:/run/collector
+      - type: bind
+        source: /mnt/YOUR_POOL/apps/json-collector/secrets/authorized_tokens.json
+        target: /run/secrets/authorized_tokens.json
+        read_only: true
+        bind:
+          create_host_path: false
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:' + (os.environ.get('JSON_COLLECTOR_PORT') or '8000') + '/json-collector/health-check', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  proxy:
+    image: ghcr.io/YOUR_GITHUB_USER/simple-json-collector-caddy-YOUR_PROVIDER:latest
+    env_file:
+      - /mnt/YOUR_POOL/apps/json-collector/secrets/caddy.env
+    environment:
+      DOMAIN: collector.example.com
+      DNS_PROVIDER: YOUR_PROVIDER
+      JSON_COLLECTOR_PORT: "8000"
+      TLS_PORT: "8443"
+    ports:
+      - "8443:8443"
+    volumes:
+      - /mnt/YOUR_POOL/apps/json-collector/caddy/data:/data
+      - /mnt/YOUR_POOL/apps/json-collector/caddy/config:/config
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    depends_on:
+      collector:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:2019/config/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
