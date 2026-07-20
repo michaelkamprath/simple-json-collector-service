@@ -22,5 +22,5 @@ COPY json-collector-service.py /json-collector-service.py
 COPY token_auth.py /token_auth.py
 
 USER collector
-HEALTHCHECK CMD python -c "import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:' + (os.environ.get('JSON_COLLECTOR_PORT') or '8000') + '/json-collector/health-check')"
+HEALTHCHECK CMD python -c "import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:' + (os.environ.get('JSON_COLLECTOR_PORT') or '8000') + '/json-collector/health-check', timeout=3)"
 CMD ["python", "/json-collector-service.py"]

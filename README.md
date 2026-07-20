@@ -23,12 +23,13 @@ Alternatively, you can manually build the Docker file, then launch the container
 docker build -t json-collector-service:latest .
 JSON_COLLECTOR_PORT="${JSON_COLLECTOR_PORT:-8000}"
 docker run -d \
+    --user "$(id -u):$(id -g)" \
     --mount "type=bind,src=${DATA_FILE_DIR},dst=/run/collector" \
     --env "JSON_COLLECTOR_PORT=${JSON_COLLECTOR_PORT}" \
     --publish "${JSON_COLLECTOR_PORT}:${JSON_COLLECTOR_PORT}" \
     json-collector-service:latest
 ```
-`DATA_FILE_DIR` must be an absolute writable host directory. `JSON_COLLECTOR_PORT` selects the service's container port and publishes that same port on the host; it defaults to `8000` when unset or empty. Dockerfile `EXPOSE` metadata does not publish a runtime-selected port, so direct `docker run` commands must include `--publish`.
+`DATA_FILE_DIR` must be an absolute writable host directory. Running with the invoking host UID/GID preserves write access to normal bind-mounted directories while keeping the service non-root. `JSON_COLLECTOR_PORT` selects the service's container port and publishes that same port on the host; it defaults to `8000` when unset or empty. Dockerfile `EXPOSE` metadata does not publish a runtime-selected port, so direct `docker run` commands must include `--publish`.
 
 The environment variable `MAX_JSONL_FILE_SIZE` (integer value in bytes) can be used to set the max data file size used when determining when to rotate the data file. It defaults to 50 MB. The launch script also publishes the configured `JSON_COLLECTOR_PORT` on both the host and container.
 

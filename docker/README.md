@@ -23,6 +23,8 @@ DNS_PROVIDER=linode
 
 Most providers accept an API token as the first `dns` argument. If yours uses multiple or named credentials, adjust only the `tls` block in `Caddyfile` according to that provider's documentation.
 
+The Compose service grants Caddy `NET_BIND_SERVICE`, allowing a non-root process to use TLS ports below `1024`. When running the custom Caddy image directly on a low port, include `--cap-add NET_BIND_SERVICE`; it is unnecessary for ports `1024` and above.
+
 ## Run and Test
 
 ```sh

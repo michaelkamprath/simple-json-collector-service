@@ -22,6 +22,7 @@ docker build -t json-collector-service:latest .
 set -- docker run -d -it
 set -- "$@" --name json-collector-service
 set -- "$@" --restart unless-stopped
+set -- "$@" --user "$(id -u):$(id -g)"
 set -- "$@" --mount "type=bind,src=${DATA_FILE_DIR},dst=/run/collector"
 set -- "$@" -p "${json_collector_port}:${json_collector_port}"
 set -- "$@" --env "MAX_JSONL_FILE_SIZE=${max_jsonl_file_bytes}"
